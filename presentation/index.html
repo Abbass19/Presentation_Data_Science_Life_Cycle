@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Planning – a real example</title>
+<style>
+:root{
+  --bg:#f6f5f1; --paper:#ffffff; --ink:#1f2933; --muted:#5d6872; --line:#d9d8d2;
+  --blue:#2f5d8a; --blue-t:#e6eef6;
+  --teal:#2f7a76; --teal-t:#e3f0ee;
+  --plum:#6b5b95; --plum-t:#ece9f3;
+  --sand:#a9822f; --sand-t:#f5eedc;
+  --rose:#9a5b6b; --rose-t:#f3e8eb;
+  --slate:#4b5966; --slate-t:#e9ecef;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#15191d; --paper:#1d2329; --ink:#e7eaed; --muted:#9aa6b0; --line:#34404a;
+    --blue:#7aa7d2; --blue-t:#1f2c3a; --teal:#6fc0b9; --teal-t:#1c302e;
+    --plum:#a999d6; --plum-t:#2a2640; --sand:#d2ae62; --sand-t:#352d1b;
+    --rose:#d192a3; --rose-t:#37262c; --slate:#aab7c3; --slate-t:#252d34;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;overflow:hidden}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#deck{width:1280px;height:720px;position:relative;transform-origin:center center;flex:none}
+.slide{position:absolute;inset:0;background:var(--paper);border:1px solid var(--line);border-radius:6px;
+  padding:52px 70px 56px;display:none;flex-direction:column}
+.slide.active{display:flex;animation:fade .25s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.slide.active{animation:none}}
+
+.kicker{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+h1{font-size:50px;line-height:1.12;font-weight:650;letter-spacing:-.01em}
+h2{font-size:34px;line-height:1.2;font-weight:620;margin-bottom:22px;letter-spacing:-.005em}
+h3{font-size:21px;font-weight:620;margin-bottom:8px}
+p,li{font-size:23px;line-height:1.45}
+.sm{font-size:18px;line-height:1.45}
+.xs{font-size:15px;line-height:1.4;color:var(--muted)}
+.muted{color:var(--muted)}
+ul{padding-left:26px} li{margin:7px 0}
+.cols{display:flex;gap:34px;flex:1;min-height:0}
+.col{flex:1;min-width:0}
+.grow{flex:1;min-height:0}
+.footer{position:absolute;left:70px;right:70px;bottom:20px;font-size:14px;color:var(--muted);display:flex;justify-content:space-between}
+.note{margin-top:auto;padding:10px 16px;border-left:3px solid var(--sand);background:var(--sand-t);font-size:17px;line-height:1.4;border-radius:0 4px 4px 0}
+.card{border:1px solid var(--line);border-radius:8px;padding:14px 18px;background:var(--paper)}
+.tag{display:inline-block;font-size:14px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-right:6px;white-space:nowrap}
+.t-blue{background:var(--blue-t);color:var(--blue);border-color:transparent}
+.t-teal{background:var(--teal-t);color:var(--teal);border-color:transparent}
+.t-plum{background:var(--plum-t);color:var(--plum);border-color:transparent}
+.t-sand{background:var(--sand-t);color:var(--sand);border-color:transparent}
+.t-rose{background:var(--rose-t);color:var(--rose);border-color:transparent}
+.t-slate{background:var(--slate-t);color:var(--slate);border-color:transparent}
+
+table{border-collapse:collapse;width:100%;font-size:18px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+table.tight td,table.tight th{padding:6px 10px;font-size:16px}
+.mono{font-family:Consolas,"Cascadia Mono",monospace;font-size:.92em}
+
+/* boxes / flows */
+.flow{display:flex;align-items:stretch;gap:10px}
+.box{flex:1;border-radius:8px;padding:12px 14px;font-size:18px;line-height:1.35}
+.arrow{align-self:center;color:var(--muted);font-size:26px}
+.b-blue{background:var(--blue-t)} .b-teal{background:var(--teal-t)} .b-plum{background:var(--plum-t)}
+.b-sand{background:var(--sand-t)} .b-rose{background:var(--rose-t)} .b-slate{background:var(--slate-t)}
+.hl{outline:2px solid var(--blue)}
+
+/* bars */
+.bars{display:flex;flex-direction:column;gap:12px}
+.bar-row{display:grid;grid-template-columns:190px 1fr;align-items:center;gap:12px;font-size:17px}
+.bar-track{position:relative;height:20px;background:var(--slate-t);border-radius:3px}
+.bar-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bar-fill.a{background:var(--blue)} .bar-fill.b{background:var(--teal)} .bar-fill.c{background:var(--plum)}
+.bar-val{position:absolute;right:6px;top:0;line-height:20px;font-size:13px;color:#fff}
+.bar-pair .bar-track{height:15px;margin:2px 0}
+.bar-pair .bar-val{line-height:15px;font-size:12px}
+.vline{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--sand)}
+.legend{display:flex;gap:18px;font-size:15px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+/* funnel */
+.funnel{display:flex;flex-direction:column;align-items:center;gap:6px}
+.f-row{border-radius:6px;padding:8px 14px;font-size:18px;text-align:center;line-height:1.3}
+.f-top{background:var(--slate-t)}
+.f-end{background:var(--teal-t);font-weight:600}
+
+/* nav */
+#bar{position:fixed;left:0;bottom:0;height:3px;background:var(--blue);width:0;transition:width .25s}
+#hud{position:fixed;right:14px;bottom:10px;font-size:13px;color:var(--muted);display:flex;gap:10px;align-items:center}
+#hud button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:4px;padding:2px 9px;cursor:pointer;font-size:13px}
+#hud button:hover{color:var(--ink)}
+#notes{position:fixed;left:0;right:0;bottom:0;max-height:34vh;overflow:auto;background:var(--paper);border-top:1px solid var(--line);
+  padding:14px 28px;font-size:16px;line-height:1.5;display:none;z-index:5}
+#notes.on{display:block}
+#help{position:fixed;left:14px;bottom:10px;font-size:13px;color:var(--muted)}
+.fig{border:1px solid var(--line);border-radius:6px;background:#fff;display:block;max-width:100%}
+</style>
+</head>
+<body>
+<div id="viewport"><div id="deck">
+
+<!-- 1 -->
+<section class="slide" data-notes="Short intro. My topic is Model Planning, the third step of the lifecycle. I will explain it quickly, then use a project I worked on, HCAT, as the example. It is not a project pitch; I just went through the modelling decisions myself, so it is a convenient case. The results are only here to explain why the plan changed.">
+  <div class="grow" style="display:flex;flex-direction:column;justify-content:center">
+    <div class="kicker">Data Analytics Lifecycle · Task 7</div>
+    <h1>Model Planning,<br>with a real example</h1>
+    <p class="muted" style="margin-top:22px;max-width:760px">What we decided before and while building models for a hospital complaint classifier (HCAT Insight) — including the parts that did not work very well.</p>
+  </div>
+  <div class="footer"><span>[Name] · M2 Data Science</span><span>No GPUs were involved in the making of this project.</span></div>
+</section>
+
+<!-- 2 -->
+<section class="slide" data-notes="The lifecycle is drawn as a line but in practice it loops. Model Planning takes the business question and the prepared data and produces a plan: candidate models, how we will evaluate them, which experiments to run. Keep the back arrows in mind, because the example shows them.">
+  <div class="kicker">Theory</div>
+  <h2>Where Model Planning sits</h2>
+  <div class="flow" style="margin:26px 0 18px">
+    <div class="box b-slate">Discovery</div><div class="arrow">→</div>
+    <div class="box b-slate">Data preparation</div><div class="arrow">→</div>
+    <div class="box b-blue hl"><b>Model planning</b></div><div class="arrow">→</div>
+    <div class="box b-slate">Model building</div><div class="arrow">→</div>
+    <div class="box b-slate">Communicate results</div><div class="arrow">→</div>
+    <div class="box b-slate">Operationalise</div>
+  </div>
+  <div class="cols" style="margin-top:22px">
+    <div class="col card"><h3>Planning receives</h3><ul class="sm"><li>the business question</li><li>what we know about the data</li><li>constraints (hardware, privacy, time)</li></ul></div>
+    <div class="col card"><h3>Planning hands over</h3><ul class="sm"><li>candidate models and baselines</li><li>an evaluation plan</li><li>a list of experiments for building</li></ul></div>
+  </div>
+  <p class="sm muted" style="margin-top:22px">In practice the arrows also go backwards: building produces results, and results change the plan.</p>
+</section>
+
+<!-- 3 -->
+<section class="slide" data-notes="One question sums it up. The point of this list is that most of it is not about algorithms. Problem, data and environment decide a lot before we compare models. I will map the example back onto this list at the end.">
+  <div class="kicker">Theory</div>
+  <h2>What Model Planning is</h2>
+  <p style="margin-bottom:20px"><b>What should we try, why, under what conditions — and how will we judge it?</b></p>
+  <div class="cols" style="gap:14px">
+    <div class="col card b-blue"><h3 style="color:var(--blue)">Problem</h3><ul class="sm"><li>task type</li><li>target definition</li><li>target structure (flat, hierarchical, ordinal…)</li><li>human in the loop?</li></ul></div>
+    <div class="col card b-teal"><h3 style="color:var(--teal)">Data</h3><ul class="sm"><li>size</li><li>class imbalance</li><li>label noise</li><li>representation / features</li></ul></div>
+    <div class="col card b-plum"><h3 style="color:var(--plum)">Models</h3><ul class="sm"><li>candidate families</li><li>baselines</li><li>assumptions</li><li>interpretability</li></ul></div>
+    <div class="col card b-sand"><h3 style="color:var(--sand)">Environment</h3><ul class="sm"><li>compute, latency</li><li>deployment, privacy</li><li>cost of mistakes</li></ul></div>
+    <div class="col card b-rose"><h3 style="color:var(--rose)">Evaluation</h3><ul class="sm"><li>metrics</li><li>success threshold</li><li>train / validation / test</li><li>experiments to run</li></ul></div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="slide" data-notes="Planning decides what to try and how to judge it. Building implements, trains and tunes. A question like 'should we use a hierarchy?' is planning. 'Train XGBoost on this branch' is building. The loop is the interesting part: each pass through building gave us something that changed the plan.">
+  <div class="kicker">Theory</div>
+  <h2>Planning vs building</h2>
+  <div class="cols">
+    <div class="col">
+      <table>
+        <tr><th></th><th>Planning</th><th>Building</th></tr>
+        <tr><td>Question</td><td>What should we try, and how will we judge it?</td><td>Implement, train, tune, evaluate</td></tr>
+        <tr><td>Output</td><td>Candidates, baselines, metrics, risks</td><td>Fitted models and results</td></tr>
+        <tr><td>Example</td><td>“Should the labels be modelled as a hierarchy?”</td><td>“Train a model on branch 2.”</td></tr>
+      </table>
+    </div>
+    <div class="col" style="display:flex;flex-direction:column;justify-content:center;gap:12px">
+      <div class="flow"><div class="box b-blue">Plan</div><div class="arrow">→</div><div class="box b-slate">Build</div></div>
+      <div class="flow"><div class="box b-rose">Revise the plan</div><div class="arrow">←</div><div class="box b-teal">Look at the results</div></div>
+      <p class="xs" style="text-align:center">…and around again. The example goes through this loop a few times.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="slide" data-notes="Just enough context. The hospital receives complaints in Arabic. An officer has to give each one nine labels from the HCAT taxonomy. We wanted a model to suggest the labels and a person to confirm them. That last part matters later because it changes how we think about mistakes.">
+  <div class="kicker">The example · HCAT Insight</div>
+  <h2>The problem</h2>
+  <ul>
+    <li>A cardiac hospital collects patient complaints, in Arabic.</li>
+    <li>For each one, an officer assigns <b>nine labels</b> from the HCAT taxonomy (Healthcare Complaints Analysis Tool). It is slow and not always consistent.</li>
+    <li>Goal: the model <b>suggests</b> the labels, a person <b>confirms</b> them.</li>
+  </ul>
+  <div class="flow" style="margin-top:auto">
+    <div class="box b-slate">Complaint text (Arabic)</div><div class="arrow">→</div>
+    <div class="box b-blue">Model suggests labels</div><div class="arrow">→</div>
+    <div class="box b-teal">Officer confirms or corrects</div><div class="arrow">→</div>
+    <div class="box b-slate">Routing &amp; reports</div>
+  </div>
+  <div class="footer"><span></span><span>Only the modelling side is covered here — no software architecture.</span></div>
+</section>
+
+<!-- 6 -->
+<section class="slide" data-notes="The data was small, Arabic, and fairly long. The first project before the job had 111 records; when the job started I got the whole set of around 500, which became 476 after cleaning, with 380 for training and 96 for testing. For reference, the published study I used as a yardstick had 1,816 English complaints. There are two kinds of text per record: the patient's complaint, and the hospital's response. That matters for which text feeds which model.">
+  <div class="kicker">The example · data</div>
+  <h2>What the data looked like</h2>
+  <div class="cols">
+    <div class="col">
+      <ul class="sm">
+        <li>Arabic (standard + dialect) with English medical terms</li>
+        <li>Patient text: avg ~330 characters, up to ~1,450</li>
+        <li>Two hospital texts: avg ~155 and ~140 characters</li>
+        <li>Real labels from officers; nobody measured inter-annotator agreement</li>
+        <li>Split: <b>380 train / 96 test</b> (random, same for every model)</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3>Number of records</h3>
+      <div class="bars" id="ds-bars"></div>
+      <p class="xs" style="margin-top:12px">111 before I started · ~500 when the job began · 476 after cleaning. The 1,816 is a published study on English GP complaints, for context.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide" data-notes="This is the part where the problem definition matters. It looks like one classification task but it is nine targets from two texts, of different types. Our first plan treated them as nine independent classifiers. Status was dropped because it was constant, which made it the easiest model we ever built.">
+  <div class="kicker">The example · the prediction problem</div>
+  <h2>Not one problem, but nine targets</h2>
+  <div class="cols">
+    <div class="col card"><h3>From the patient text</h3>
+      <ul class="sm"><li>Domain (3 classes)</li><li>Category (7)</li><li>Sub-category (26)</li><li>Fine-grained label (78 Arabic / 73 English)</li></ul></div>
+    <div class="col card"><h3>From the hospital texts</h3>
+      <ul class="sm"><li>Severity (3, ordered)</li><li>Stage of care (6)</li><li>Harm (5, ordered)</li><li>Improvement-opportunity type (3: ordinary, red flag, never event)</li></ul></div>
+  </div>
+  <p style="margin-top:22px">First plan: <b>nine independent classifiers</b>. Hold that thought.</p>
+  <p class="xs" style="margin-top:6px">(A tenth label, Status, was constant and was dropped — the easiest model we ever built.)</p>
+</section>
+
+<!-- 8 -->
+<section class="slide" data-notes="This slide basically predicts the rest. When one class is 93 percent of the records, a model that always says that class looks good. And with 78 classes and 476 records you get about six records per class on average, which is not enough for any model, whatever the architecture. The 50 per class line is a rule of thumb from the project documentation, not a theorem.">
+  <div class="kicker">The example · target structure</div>
+  <h2>Many classes, few records, one dominant class</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>Average records per class (476 ÷ classes)</h3>
+      <div class="bars" id="cls-bars"></div>
+      <p class="xs" style="margin-top:12px">Dashed line ≈ 50 per class, a rule of thumb used in the project notes.</p>
+    </div>
+    <div class="col">
+      <h3>Dominant class share</h3>
+      <div class="bars" id="dom-bars"></div>
+      <p class="xs" style="margin-top:12px">Red-flag complaints: 19 records. Harm is skewed toward severe cases because it is a cardiac hospital.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide" data-notes="This is the constraint funnel. The offline requirement came with the original brief, for privacy and hospital IT policy. The server has no GPU and not much memory. RAM was not measured, as far as I remember it was around 8 GB or less, and even loading a larger speech model was painful, so I never tried to load an LLM. The latency target was a few seconds per text. All that leaves frozen embeddings plus light classifiers.">
+  <div class="kicker">The example · constraints</div>
+  <h2>The environment removed most options early</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="funnel" id="funnel"></div>
+    </div>
+    <div class="col">
+      <h3>What this ruled out</h3>
+      <ul class="sm">
+        <li>cloud APIs (no internet, hospital IT policy)</li>
+        <li>fine-tuning large models (no GPU)</li>
+        <li>running a large local model (limited RAM)</li>
+        <li>deep models trained from scratch (380 training records)</li>
+      </ul>
+      <p class="note" style="margin-top:20px">RAM and latency numbers in our docs are estimates, not measurements. RAM was roughly “8 GB or less”.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="slide" data-notes="Note the status column. 'Never tested' for local LLMs is deliberate: we ruled it out by the environment, not by an experiment. The fine-tuned transformer was actually built and did not do well on this little data. Embeddings plus classical classifiers is what we ended up using.">
+  <div class="kicker">The example · options</div>
+  <h2>Options we looked at</h2>
+  <table>
+    <tr><th>Option</th><th>Fits the environment?</th><th>What actually happened</th></tr>
+    <tr><td>Cloud LLM, zero-shot</td><td>No (offline)</td><td>Only as published results for reference</td></tr>
+    <tr><td>Local LLM</td><td>Probably not (RAM)</td><td>Never tried</td></tr>
+    <tr><td>Fine-tuned BERT / AraBERT, multi-head</td><td>Heavy on CPU</td><td>Built and tested; clearly weaker on our small data</td></tr>
+    <tr><td>TF-IDF + logistic regression</td><td>Yes</td><td>Tested early (111 records); weaker</td></tr>
+    <tr><td><b>Frozen sentence embeddings + LR / RF / XGBoost</b></td><td>Yes</td><td>Used</td></tr>
+  </table>
+  <p class="xs" style="margin-top:14px">Embedding model: paraphrase-multilingual-mpnet-base-v2 (768-dim). It handles Arabic and Arabic–English mixing, and runs on CPU.</p>
+</section>
+
+<!-- 11 -->
+<section class="slide" data-notes="The LLM question comes up every time, so here is the honest answer. In our case it was not really a modelling choice; the environment made it impossible. Without those limits it would have been a sensible baseline to try first. There is published work using GPT-4o on this kind of task, and I use it as a reference only.">
+  <div class="kicker">The example · a common question</div>
+  <h2>“Why not just use an LLM?”</h2>
+  <div class="cols">
+    <div class="col card"><h3>In our situation</h3>
+      <ul class="sm"><li>No internet, so no API</li><li>Data stays inside the hospital network</li><li>CPU only, limited RAM (even a bigger Whisper model was hard to load)</li><li>Retraining has to stay cheap</li></ul></div>
+    <div class="col card"><h3>If those limits did not exist</h3>
+      <ul class="sm"><li>A zero-shot LLM would be a reasonable first baseline</li><li>Fine-tuning an Arabic BERT on a GPU</li><li>Explanations and summaries become possible</li><li>We would still evaluate on our own data and keep a human in the loop</li></ul></div>
+  </div>
+  <p class="sm muted" style="margin-top:20px">So: it did not fit the environment — we never measured how it would have done.</p>
+</section>
+
+<!-- 12 -->
+<section class="slide" data-notes="This is the table I would use as a template. A planning question, what the project told us, and what that did to the plan. The one I discovered last was independence of labels, which is the next part of the story.">
+  <div class="kicker">The example · putting it together</div>
+  <h2>Planning questions → what we knew → what it implied</h2>
+  <table class="tight">
+    <tr><th>Question</th><th>What we knew</th><th>Consequence for the plan</th></tr>
+    <tr><td>Cloud inference?</td><td>No internet</td><td>Everything local</td></tr>
+    <tr><td>GPU / enough RAM for an LLM?</td><td>No / limited</td><td>Frozen encoder, no fine-tuning</td></tr>
+    <tr><td>Large dataset?</td><td>380 training records</td><td>Classical classifiers</td></tr>
+    <tr><td>Arabic text?</td><td>Standard + dialect + English terms</td><td>Multilingual encoder</td></tr>
+    <tr><td>Balanced labels?</td><td>Dominant class 60–93%</td><td>Macro-F1, class weights</td></tr>
+    <tr><td>Independent labels?</td><td>Unknown at first</td><td><i>(next slides)</i></td></tr>
+    <tr><td>Are mistakes equally costly?</td><td>No — missing a severe case is worst</td><td>Human review for high-risk predictions</td></tr>
+    <tr><td>Retrainable?</td><td>Data keeps growing</td><td>Store embeddings once, retrain classifiers cheaply</td></tr>
+  </table>
+</section>
+
+<!-- 13 -->
+<section class="slide" data-notes="Here is the first plan and how we intended to judge it. Embeddings stored in a database, logistic regression per target as the baseline, maybe multi-head models to use label correlation. Success was set at 0.8 accuracy, using the published GPT-4o study as a rough yardstick. The plan was reasonable, but looking back it had no cross-validation, no validation set, no majority-class baseline.">
+  <div class="kicker">The first plan</div>
+  <h2>Plan v1 and how we would judge it</h2>
+  <div class="cols">
+    <div class="col card"><h3>Models</h3>
+      <ul class="sm"><li>Sentence embeddings stored in a database</li><li>A: one logistic regression per target</li><li>B: two multi-head models (one per text)</li><li>Idea: a shared model could use correlations between labels</li></ul></div>
+    <div class="col card"><h3>Evaluation</h3>
+      <ul class="sm"><li>Target: about 0.8 accuracy (“acceptable, not outstanding”)</li><li>Macro-F1 and per-class results</li><li>One random 80/20 split, same for all models</li><li>A published GPT-4o study as a rough reference</li></ul></div>
+  </div>
+  <p class="note">Not in the plan: cross-validation, a separate validation set, a “always predict the biggest class” baseline. More on that near the end.</p>
+</section>
+
+<!-- 14 -->
+<section class="slide" data-notes="First results with flat classifiers on the full data. Only Domain is near the 0.8 line. Look at the difference between accuracy and macro-F1, which is large for most targets. That gap is the next slide. The numbers are from the project documentation, earlier-wave notes give slightly different values for some targets, e.g. Domain 81.7 percent.">
+  <div class="kicker">First results</div>
+  <h2>Flat baselines: the first approach was not enough</h2>
+  <div class="bars" id="flat-bars"></div>
+  <div class="legend"><span><i style="background:var(--blue)"></i>accuracy</span><span><i style="background:var(--teal)"></i>macro-F1</span><span><i style="background:var(--sand)"></i>0.8 target</span></div>
+  <p class="xs" style="margin-top:10px">Logistic regression on stored embeddings, test split of about 96 records.</p>
+</section>
+
+<!-- 15 -->
+<section class="slide" data-notes="Why accuracy was misleading. Improvement type: 98.9 percent accuracy but macro-F1 about 0.5, because it predicts ordinary every time. Severity: a random forest got 82.8 percent accuracy with macro-F1 around 0.4. The later severity model predicts low for almost everything. The harm binary model had 93.8 percent accuracy and found none of the 6 high-harm cases in the test set. The footnote: the F1 values reported for severity and harm in our final report look like weighted F1; recomputing macro from the per-class table gives about 0.28 for severity. That is a nice example of why the metric definition should be fixed in the plan.">
+  <div class="kicker">First results</div>
+  <h2>Why accuracy was misleading</h2>
+  <table>
+    <tr><th>Target (model)</th><th>Accuracy</th><th>What was behind it</th></tr>
+    <tr><td>Improvement type (random forest)</td><td>98.9%</td><td>Macro-F1 ≈ 0.50: it predicted “ordinary” almost always</td></tr>
+    <tr><td>Severity (random forest)</td><td>82.8%</td><td>Macro-F1 ≈ 0.40: mostly “low”</td></tr>
+    <tr><td>Severity (ordinal model, later)</td><td>≈ 73%</td><td>Recall: low 1.00, medium 0, high 0</td></tr>
+    <tr><td>Harm, binary high / low</td><td>93.8%</td><td>0 of the 6 high-harm test cases were found</td></tr>
+  </table>
+  <p class="sm" style="margin-top:18px">What we changed: macro-F1 as the main metric, look at per-class recall, class weights, and keep a human on every high-risk prediction.</p>
+  <p class="note">Side note: the “F1” we first reported for Severity looks like <i>weighted</i> F1. Recomputed from the per-class table, macro-F1 is ≈ 0.28. Worth fixing the metric definition in the plan.</p>
+</section>
+
+<!-- 16 -->
+<section class="slide" data-notes="The threshold was missed for most targets, so there was a discussion with the supervisor. We considered merging labels, generating synthetic data, collecting more data, trying an LLM-based approach, or shipping anyway. The decision was to continue with the ML models as they were, collect more data and retrain, test off-the-shelf NER and Faster-Whisper, and leave the launch question open. One reframing that helped: each target is basically its own small project.">
+  <div class="kicker">The first approach was not enough</div>
+  <h2>What do you do when the target is missed?</h2>
+  <div class="cols">
+    <div class="col"><h3>Options we listed</h3>
+      <ul class="sm"><li>merge rare labels</li><li>generate more data (paraphrase, translation, LLM)</li><li>collect more real data</li><li>look for an LLM-based approach</li><li>ship anyway, with a human reviewing</li></ul></div>
+    <div class="col"><h3>What we agreed with the supervisor</h3>
+      <ul class="sm"><li>keep going with the ML models as they are</li><li>retrain as data grows (at roughly 1.5×, 2×, 2.5× the data)</li><li>try existing NER and speech models</li><li>leave the “launch now?” question open</li></ul></div>
+  </div>
+  <p class="note">A reframing that helped: every target is basically its own small project, with its own problem and its own failure modes.</p>
+</section>
+
+<!-- 17 -->
+<section class="slide" data-notes="At some point we noticed that the labels were not independent. The observation: a stacked model, which receives the Domain prediction as an input for Category, did slightly better than the flat model. The gain is small, about 0.04 macro-F1 on about 93 test records, and we did not run a significance test. But it suggested the labels follow an order, and that parallel heads in a multi-head network share an encoder but do not use each other's outputs.">
+  <div class="kicker">Revising the plan</div>
+  <h2>At some point we noticed the labels are not independent</h2>
+  <div class="cols">
+    <div class="col">
+      <ul class="sm">
+        <li>Category with the <b>Domain prediction added as input</b>: 63.4% / macro-F1 0.485, versus 60.2% / 0.448 for the flat model.</li>
+        <li>Small gain, no significance test — but it hinted at a structure.</li>
+        <li>Multi-head networks share an encoder, yet each head ignores the others.</li>
+      </ul>
+      <p class="xs" style="margin-top:14px">Annotators effectively work in an order: Domain → Category → Sub-category → Severity → Stage → Harm.</p>
+    </div>
+    <div class="col" style="display:flex;flex-direction:column;gap:8px;justify-content:center">
+      <div class="flow"><div class="box b-blue">Patient text</div><div class="arrow">→</div><div class="box b-blue">Domain</div><div class="arrow">→</div><div class="box b-blue">Category</div><div class="arrow">→</div><div class="box b-blue">Sub-cat.</div></div>
+      <div class="flow"><div class="box b-plum">Hospital text</div><div class="arrow">→</div><div class="box b-plum">Severity</div><div class="arrow">→</div><div class="box b-plum">Stage</div><div class="arrow">→</div><div class="box b-plum">Harm</div></div>
+      <p class="xs" style="text-align:center">later labels depend on earlier ones (simplified)</p>
+    </div>
+  </div>
+</section>
+
+<!-- 18 -->
+<section class="slide" data-notes="The revised plan: five things to test and three ideas that were considered and set aside. Logistic regression stays as the baseline, stacked models, XGBoost with extra features, ordinal logistic regression for severity, better embeddings. Set aside: parallel multi-head networks, Bayesian networks, CRFs, with the reasons. Bayesian networks and CRFs were only considered, never built.">
+  <div class="kicker">Revising the plan</div>
+  <h2>Plan v2: what to test, and what to set aside</h2>
+  <div class="cols">
+    <div class="col card"><h3>To test</h3>
+      <ul class="sm"><li>Logistic regression as the baseline</li><li>Stacked models (earlier predictions as features)</li><li>XGBoost with extra features</li><li>Ordinal logistic regression for Severity</li><li>Better embeddings (multilingual MPNet)</li></ul></div>
+    <div class="col card"><h3>Considered, not pursued</h3>
+      <ul class="sm"><li>Parallel multi-head networks — ignore label dependency, heavy on CPU</li><li>Bayesian networks — hard to estimate with ~500 records</li><li>CRFs — a lot of machinery for this data size</li></ul>
+      <p class="xs" style="margin-top:10px">Only considered; never built.</p></div>
+  </div>
+</section>
+
+<!-- 19 -->
+<section class="slide" data-notes="The next realisation: it is not just dependent, it is a tree. Each domain has its own set of categories, each category its own sub-categories, and they do not overlap. A quick look at the label combinations showed it in about ten minutes. So instead of stacking probabilities, we split the data by branch and trained one model per branch: one domain model, three category models, seven sub-category models, eleven in total. This image is that pipeline. For the Management branch the category result improved to around 85 percent, but that branch is a two-class problem, and the biggest class alone would give about 64 percent, so it is not comparable with the seven-class flat model.">
+  <div class="kicker">Revising the plan</div>
+  <h2>Then we noticed it is a tree</h2>
+  <div class="cols" style="gap:26px">
+    <div class="col" style="flex:1.35"><img class="fig" src="assets/hierarchy_11_models.png" alt="Hierarchical pipeline: 1 domain model, 3 category models, 7 sub-category models"></div>
+    <div class="col">
+      <ul class="sm">
+        <li>Each Domain only has certain Categories; each Category only certain Sub-categories.</li>
+        <li>So: one model per branch (1 + 3 + 7 = 11).</li>
+      </ul>
+      <h3 style="margin-top:14px">Category macro-F1</h3>
+      <div class="bars" id="hier-bars"></div>
+      <p class="xs" style="margin-top:10px">The Management branch is an easier two-class problem (Environment vs Institutional Processes); always predicting the larger class gives roughly 64%.</p>
+    </div>
+  </div>
+  <div class="footer"><span></span><span>A 10-minute look at label combinations would have shown this earlier.</span></div>
+</section>
+
+<!-- 20 -->
+<section class="slide" data-notes="Different targets ended up needing different designs. Domain, category and sub-category use the patient text in the hierarchy. Severity is ordered, so we used an ordinal model on the combined text. Harm has very rare classes, so there is a binary high versus low model for triage plus a finer model for reporting. Stage uses the hospital text and a different feature set. Improvement type is a simple classifier with a human confirming every red flag. Which text feeds which model came from experiments comparing patient text, hospital text and both.">
+  <div class="kicker">Revising the plan</div>
+  <h2>Different targets needed different approaches</h2>
+  <table class="tight">
+    <tr><th>Target</th><th>Input text</th><th>Nature of the target</th><th>Design we ended up with</th></tr>
+    <tr><td>Domain, Category, Sub-category</td><td>Patient</td><td>Tree</td><td>One model per branch</td></tr>
+    <tr><td>Severity</td><td>Patient + hospital</td><td>Ordered; depends on context</td><td>Ordinal logistic regression</td></tr>
+    <tr><td>Harm</td><td>Patient + hospital</td><td>Ordered; rare classes</td><td>Binary high/low triage + finer model</td></tr>
+    <tr><td>Stage</td><td>Hospital</td><td>Often several stages, one label</td><td>Sentence-level concept scores (next slide)</td></tr>
+    <tr><td>Improvement type</td><td>Patient</td><td>Rare event</td><td>Simple classifier + human confirmation</td></tr>
+  </table>
+  <p class="xs" style="margin-top:12px">Which text to use per target came from comparing patient text, hospital text, and both.</p>
+</section>
+
+<!-- 21 -->
+<section class="slide" data-notes="Stage is the most unusual design. Complaints are long and often touch several stages, but the label is single. A single embedding of the whole text dilutes the cues. So we wrote about 15 short concept lists, such as arrival, billing, waiting, lab issues; embedded each, and measured how strongly each sentence of a complaint points toward each concept, with a dot product, taking the maximum over the sentences. Those 15 scores feed a small classifier. It was more interpretable, but accuracy was around 45 percent and macro-F1 about 0.25, so Stage stayed difficult, and we treat it as a hint.">
+  <div class="kicker">Revising the plan · one example in detail</div>
+  <h2>Stage: changing the representation</h2>
+  <div class="flow" style="margin:6px 0 18px">
+    <div class="box b-slate">Complaint → up to 6 sentences</div><div class="arrow">→</div>
+    <div class="box b-plum">Sentence embeddings</div><div class="arrow">→</div>
+    <div class="box b-plum">Dot product with ~15 concept vectors<br><span class="xs">(arrival, billing, waiting, lab issues…)</span></div><div class="arrow">→</div>
+    <div class="box b-teal">max over sentences → 15 scores → classifier</div>
+  </div>
+  <ul class="sm">
+    <li>Motivation: one embedding of a long text dilutes stage cues; complaints often span several stages but have one label.</li>
+    <li>Outcome: more interpretable, but accuracy ≈ 45% and macro-F1 ≈ 0.25. Stage is still difficult, so it is used as a hint with human review.</li>
+  </ul>
+</section>
+
+<!-- 22 -->
+<section class="slide" data-notes="Some targets were not practical with the available data. The 78-class and 73-class labels never got above about 0.15 macro-F1, with flat models, stacking and in the production run. With about six records per class on average, and a rule of thumb of about 50 per class, you would need roughly 4,000 records. So they stay manual. An early idea was to multiply the data with paraphrasing or LLM generation; we did not do it.">
+  <div class="kicker">Revising the plan</div>
+  <h2>Some targets were not practical with this data</h2>
+  <div class="cols">
+    <div class="col"><ul>
+      <li>78 / 73-class labels: macro-F1 ≈ 0.15 (flat), 0.12 (stacked), 0.14 (final run).</li>
+      <li>≈ 6 records per class; ≈ 50 per class would need ≈ 4,000 records.</li>
+      <li>Architecture changes did not help — they cannot create data.</li>
+      <li>So these labels stay manual; synthetic data was discussed but not tried.</li>
+    </ul></div>
+    <div class="col card"><h3>The same point, smaller</h3>
+      <p class="sm">Several sub-category branches had 3–6 test records. A score on 4 records says very little.</p></div>
+  </div>
+</section>
+
+<!-- 23 -->
+<section class="slide" data-notes="Where it ended up, stated plainly. The model works as a suggestion tool. Some parts are reasonably reliable, for example the Management category branch and the relational branch; some are moderate, like domain and severity-low; some are weak, like stage and fine harm. The binary harm model missed all high-harm cases in the test set. So the operating rule is that high-risk predictions need a person. Retraining is allowed only if no model loses more than 5 points of F1.">
+  <div class="kicker">Where it ended up</div>
+  <h2>A suggestion tool with different trust levels</h2>
+  <table class="tight">
+    <tr><th>Level</th><th>Examples (final run, Feb 2026, 18 models)</th></tr>
+    <tr><td><span class="tag t-teal">fairly reliable</span></td><td>Category inside Management (F1 ≈ 0.85) and Relational (≈ 0.82); improvement type for ordinary complaints</td></tr>
+    <tr><td><span class="tag t-sand">moderate</span></td><td>Domain, Category inside Clinical (≈ 0.59), Severity “low”</td></tr>
+    <tr><td><span class="tag t-rose">weak</span></td><td>Stage (≈ 0.25), fine-grained Harm, Severity medium/high, high-harm detection (0 of 6)</td></tr>
+    <tr><td><span class="tag t-slate">not used</span></td><td>78-class and 73-class labels</td></tr>
+  </table>
+  <p class="sm" style="margin-top:16px">Operating rules: predictions are suggestions; high severity, high harm and red flag always need a person; retraining may not drop any model by more than 5 points of F1.</p>
+  <p class="xs" style="margin-top:6px">Some F1 values in that report look weighted rather than macro (see appendix).</p>
+</section>
+
+<!-- 24 -->
+<section class="slide" data-notes="For context, there is published work using GPT-4o and Claude on HCAT-style classification of English GP complaints. I used it to pick a reasonable threshold. The settings are too different for a direct comparison: language, taxonomy, test size, and some of our best-looking numbers come from sub-problems. So I treat it as a reference point and not a scoreboard.">
+  <div class="kicker">Context</div>
+  <h2>The published GPT-4o study: a reference, not a comparison</h2>
+  <table class="tight">
+    <tr><th></th><th>Published study (2025)</th><th>Our case</th></tr>
+    <tr><td>Data</td><td>1,816 English GP complaints</td><td>476 Arabic cardiac-hospital complaints</td></tr>
+    <tr><td>Method</td><td>GPT-4o and others, zero-shot</td><td>Embeddings + classical models, offline CPU</td></tr>
+    <tr><td>Domain</td><td>79.4% (κ 0.62)</td><td>≈ 82% in one run, lower in a later run</td></tr>
+    <tr><td>Category</td><td>69.8% (κ 0.57)</td><td>7-class flat ≈ 60%; one easy 2-class branch ≈ 85%</td></tr>
+    <tr><td>Harm</td><td>74.2% (κ 0.16)</td><td>binary only, missed the rare class</td></tr>
+  </table>
+  <p class="sm" style="margin-top:16px">Different language, taxonomy, class structure and test size — so it was useful for choosing a threshold, not for ranking.</p>
+</section>
+
+<!-- 25 -->
+<section class="slide" data-notes="Looking back, what I would put into the plan next time. These are mostly about evaluation, which is the part of planning that was thinnest. One split of 96 records, and some branches tested on 14 to 18 records. No cross-validation. The same test numbers were used to pick the best model and to report it. No majority-class baseline. Kappa was mentioned but never computed for our models. Macro and weighted F1 got mixed up. And one early Stage baseline was run on the wrong text column, which made the baseline look worse than it was.">
+  <div class="kicker">Looking back</div>
+  <h2>What I would plan differently</h2>
+  <table>
+    <tr><th>What happened</th><th>What I would put in the plan</th></tr>
+    <tr><td>One random 80/20 split; some branches tested on 14–18 records</td><td>Stratified cross-validation, with intervals</td></tr>
+    <tr><td>Same test numbers used to pick models and to report them</td><td>A separate validation set</td></tr>
+    <tr><td>No “always predict the biggest class” baseline</td><td>Report it next to every result</td></tr>
+    <tr><td>Kappa planned, never computed for our models</td><td>Compute it, or drop it from the plan</td></tr>
+    <tr><td>Macro and weighted F1 mixed up</td><td>Fix metric definitions up front</td></tr>
+    <tr><td>One early Stage baseline ran on the wrong text column</td><td>Double-check baselines before redesigning around them</td></tr>
+  </table>
+</section>
+
+<!-- 26 -->
+<section class="slide" data-notes="Here is the checklist from the start of the talk with the example filled in. Quick tour; if a row surprises you, that is probably where the plan changed.">
+  <div class="kicker">Back to theory</div>
+  <h2>The Model Planning checklist, with the example filled in</h2>
+  <table class="tight">
+    <tr><th>Decision</th><th>In this project</th></tr>
+    <tr><td><span class="tag t-blue">Problem</span> task, target, structure</td><td>Nine targets from two texts: a tree, two ordered ones, one rare-event</td></tr>
+    <tr><td><span class="tag t-teal">Data</span> size, imbalance, representation</td><td>380 train records; dominant classes 60–93%; frozen multilingual embeddings</td></tr>
+    <tr><td><span class="tag t-plum">Models</span> families, baselines</td><td>LR baseline; LR/RF/XGBoost; stacked; hierarchical; ordinal; LLM and fine-tuned BERT as options</td></tr>
+    <tr><td><span class="tag t-sand">Environment</span> compute, privacy, risk</td><td>Offline CPU VM; person confirms high-risk predictions</td></tr>
+    <tr><td><span class="tag t-rose">Evaluation</span> metrics, split, experiments</td><td>Accuracy → macro-F1 + per-class recall; one 380/96 split; ~8 experiments listed for building</td></tr>
+  </table>
+</section>
+
+<!-- 27 -->
+<section class="slide" data-notes="The planning-to-building handover is an experiment list. This is roughly what ours looked like, with the metric for each. Planning writes this table; building fills in the results column, and the results may rewrite it.">
+  <div class="kicker">Handing over to Model Building</div>
+  <h2>A plan ends as a list of experiments</h2>
+  <table class="tight">
+    <tr><th>#</th><th>Experiment</th><th>Judged by</th></tr>
+    <tr><td>1</td><td>Logistic regression per target (the reference line)</td><td>macro-F1, per-class recall</td></tr>
+    <tr><td>2</td><td>Which text: patient, hospital, or both</td><td>macro-F1</td></tr>
+    <tr><td>3</td><td>Flat vs stacked</td><td>gain bigger than the noise?</td></tr>
+    <tr><td>4</td><td>Hierarchical, one model per branch</td><td>per-class F1 vs “biggest class” baseline</td></tr>
+    <tr><td>5</td><td>Ordinal vs plain classes for Severity</td><td>weighted κ, recall of “high”</td></tr>
+    <tr><td>6</td><td>Stage: concept scores vs plain classifier</td><td>macro-F1 against a correct baseline</td></tr>
+    <tr><td>7</td><td>Harm: binary triage vs fine classes</td><td>recall of high harm</td></tr>
+    <tr><td>8</td><td>Retrain at 1.5× data</td><td>no model drops by more than 5 points</td></tr>
+  </table>
+  <p class="xs" style="margin-top:10px">Generic template: hypothesis · data · model · metric · threshold · when to stop.</p>
+</section>
+
+<!-- 28 -->
+<section class="slide" data-notes="To wrap up. These are the things I would take from the example about Model Planning. The environment narrowed the options before any experiment. A plan should say how we will judge results, not just which models. Structure in the targets mattered more than switching algorithms. And metrics can mislead when classes are imbalanced. Then the loop: plan, build, look, revise. Thanks, happy to take questions or to go into any part of it.">
+  <div class="kicker">Summary</div>
+  <h2>What the example showed about Model Planning</h2>
+  <ul>
+    <li>The environment narrowed the options before any experiment did.</li>
+    <li>A plan should say how results will be judged — baselines, metrics, validation — not only which models.</li>
+    <li>Understanding the structure of the targets helped more than switching algorithms.</li>
+    <li>Accuracy can be misleading when one class dominates; look at the small classes.</li>
+    <li>The best model on paper is not always the one that fits the situation.</li>
+    <li>Plan → build → look at the results → revise the plan.</li>
+  </ul>
+  <p class="muted" style="margin-top:auto">Questions? Happy to go into any part of it.</p>
+</section>
+
+<!-- A1 -->
+<section class="slide" data-notes="Appendix: full flat baselines.">
+  <div class="kicker">Appendix A1</div>
+  <h2>Flat baselines (first wave)</h2>
+  <table class="tight">
+    <tr><th>Target</th><th>LR accuracy / macro-F1</th><th>RF accuracy / macro-F1</th></tr>
+    <tr><td>Domain (3)</td><td>79.6% / 0.696</td><td>74.2% / 0.503</td></tr>
+    <tr><td>Category (7)</td><td>60.2% / 0.448</td><td>56.9% / 0.241</td></tr>
+    <tr><td>Sub-category (27)</td><td>45.2% / 0.220</td><td>44.1% / 0.174</td></tr>
+    <tr><td>Classification_ar (78)</td><td>31.2% / 0.152</td><td>25.8% / 0.083</td></tr>
+    <tr><td>Severity (3)</td><td>74.2% / 0.396</td><td>82.8% / 0.401</td></tr>
+    <tr><td>Stage (6)</td><td>56.7% / 0.390</td><td>47.8% / 0.230</td></tr>
+    <tr><td>Harm (6)</td><td>47.3% / 0.244</td><td>41.8% / 0.247</td></tr>
+    <tr><td>Improvement type (2)</td><td>97.8% / 0.744</td><td>98.9% / 0.497</td></tr>
+  </table>
+  <p class="xs" style="margin-top:10px">Source: project documentation (Model Experiments, §3). Earlier notes give slightly different values for some targets (e.g. Domain LR 81.7% / 0.722) because the data version differed.</p>
+</section>
+
+<!-- A2 -->
+<section class="slide" data-notes="Appendix: hierarchical results by branch.">
+  <div class="kicker">Appendix A2</div>
+  <h2>Hierarchical models: results by branch</h2>
+  <table class="tight">
+    <tr><th>Model</th><th>Accuracy / macro-F1</th><th>Test records</th></tr>
+    <tr><td>Domain (LR)</td><td>82.0% / 0.722</td><td>~93–96</td></tr>
+    <tr><td>Category in Clinical (Quality of care vs Safety)</td><td>67% / 0.52</td><td>18</td></tr>
+    <tr><td>Category in Management (Environment vs Inst. processes)</td><td>85% / 0.83</td><td>61</td></tr>
+    <tr><td>Category in Relational (3 classes)</td><td>64% / 0.60</td><td>14</td></tr>
+    <tr><td>Sub-category in Environment (3)</td><td>95% / 0.88</td><td>21</td></tr>
+    <tr><td>Sub-category in Institutional processes (6)</td><td>56% / 0.36</td><td>39</td></tr>
+    <tr><td>Sub-category in Safety (6)</td><td>75% / 0.33</td><td>4</td></tr>
+  </table>
+  <p class="xs" style="margin-top:10px">Small test sets: treat these as indications, not precise estimates. A later production run reported Domain at 57.3% on another split; the reason was not tracked down.</p>
+</section>
+
+<!-- A3 -->
+<section class="slide" data-notes="Appendix: the metric caveat.">
+  <div class="kicker">Appendix A3</div>
+  <h2>A note on the F1 numbers</h2>
+  <ul class="sm">
+    <li>Documentation says macro-F1 is the main metric, but in the Feb 2026 report recall equals accuracy in every row — which is what weighted averaging gives.</li>
+    <li>Severity (ordinal): per-class F1 = 0.85 / 0 / 0 → macro ≈ 0.28; weighted ≈ 0.63, close to the reported 0.62–0.64.</li>
+    <li>Harm binary: per-class F1 = 0.97 / 0 → macro ≈ 0.49; weighted ≈ 0.91, close to the reported 0.90.</li>
+    <li>Stage ≈ 0.25 is macro (per-class: 0.22, 0.40, 0.64, 0, 0).</li>
+    <li>So tiers in that report mix two kinds of average. Recomputed from the per-class tables; the raw report file was not available.</li>
+  </ul>
+</section>
+
+<!-- A4 -->
+<section class="slide" data-notes="Appendix: Stage projection maths.">
+  <div class="kicker">Appendix A4</div>
+  <h2>Stage: the concept-score maths</h2>
+  <ul class="sm">
+    <li>For each concept <i>m</i>: embed a list of example sentences, average them, normalise → unit vector <span class="mono">u_m</span>.</li>
+    <li>For each complaint: up to 6 sentences, each embedded → <span class="mono">s_j</span>.</li>
+    <li>Score: <span class="mono">f_m = max_j ( s_j · u_m )</span>.</li>
+    <li>≈ 15 scores → logistic regression → Stage.</li>
+    <li>Notes from the project: normalise embeddings first; build concept vectors from full sentences rather than keyword bags.</li>
+    <li>Concepts include: arrival, administration, bed/room, billing, cleanliness, clinical delay, communication/scheduling, conflicting diagnosis, discharge disagreement, doctor follow-up, food, lab/imaging, location, clinical errors, staff behaviour.</li>
+  </ul>
+</section>
+
+</div></div>
+
+<div id="bar"></div>
+<div id="help">← → navigate · N notes · F fullscreen</div>
+<div id="hud"><span id="count"></span><button id="prev">‹</button><button id="next">›</button></div>
+<div id="notes"></div>
+
+<script>
+(function(){
+  const slides=[...document.querySelectorAll('.slide')];
+  const deck=document.getElementById('deck'), notes=document.getElementById('notes');
+  let i=0;
+
+  function fit(){
+    const s=Math.min(innerWidth/1280, innerHeight/720)*0.98;
+    deck.style.transform='scale('+s+')';
+  }
+  addEventListener('resize',fit); fit();
+
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    document.getElementById('bar').style.width=((i+1)/slides.length*100)+'%';
+    document.getElementById('count').textContent=(i+1)+' / '+slides.length;
+    notes.textContent=slides[i].dataset.notes||'';
+    history.replaceState(null,'','#'+(i+1));
+  }
+  document.getElementById('prev').onclick=()=>show(i-1);
+  document.getElementById('next').onclick=()=>show(i+1);
+  addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' ','Enter'].includes(e.key)){e.preventDefault();show(i+1)}
+    else if(['ArrowLeft','PageUp','Backspace'].includes(e.key)){e.preventDefault();show(i-1)}
+    else if(e.key==='Home')show(0);
+    else if(e.key==='End')show(slides.length-1);
+    else if(e.key==='n'||e.key==='N')notes.classList.toggle('on');
+    else if(e.key==='f'||e.key==='F'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}
+  });
+  let tx=null;
+  addEventListener('touchstart',e=>tx=e.touches[0].clientX);
+  addEventListener('touchend',e=>{if(tx===null)return;const d=e.changedTouches[0].clientX-tx;if(Math.abs(d)>50)show(i+(d<0?1:-1));tx=null});
+
+  /* ---------- small chart helpers ---------- */
+  function bars(id,rows,max,cls,fmt,line){
+    const el=document.getElementById(id); if(!el)return;
+    el.innerHTML=rows.map(r=>{
+      const w=Math.max(1,r[1]/max*100);
+      return '<div class="bar-row"><div>'+r[0]+'</div><div class="bar-track">'
+        +'<div class="bar-fill '+(r[2]||cls)+'" style="width:'+w+'%"></div>'
+        +'<span class="bar-val" style="'+(w<12?'color:var(--ink);left:calc('+w+'% + 6px);right:auto':'')+'">'+fmt(r[1])+'</span>'
+        +(line?'<div class="vline" style="left:'+(line/max*100)+'%"></div>':'')
+        +'</div></div>';
+    }).join('');
+  }
+  bars('ds-bars',[['Wave 0 (before the job)',111],['Job start (~500)',500],['Cleaned dataset',476],['Published study (1,816)',1816,'c']],1816,'a',v=>v.toLocaleString());
+  bars('cls-bars',[['Domain (3)',159],['Category (7)',68],['Sub-category (26)',18],['Fine-grained (78)',6]],170,'a',v=>'≈ '+v,50);
+  bars('dom-bars',[['Management (Domain)',59.9],['Low severity',66.6],['Ordinary complaint',92.6]],100,'b',v=>v+'%');
+
+  const flat=[['Domain (3)',79.6,.696],['Category (7)',60.2,.448],['Sub-category (27)',45.2,.220],['Stage (6)',56.7,.390],['Harm (6)',47.3,.244],['Classif._ar (78)',31.2,.152]];
+  const fl=document.getElementById('flat-bars');
+  if(fl){fl.innerHTML=flat.map(r=>'<div class="bar-row bar-pair"><div>'+r[0]+'</div><div>'
+    +'<div class="bar-track"><div class="bar-fill a" style="width:'+r[1]+'%"></div><span class="bar-val">'+r[1]+'%</span><div class="vline" style="left:80%"></div></div>'
+    +'<div class="bar-track"><div class="bar-fill b" style="width:'+r[2]*100+'%"></div><span class="bar-val">'+r[2].toFixed(2)+'</span></div>'
+    +'</div></div>').join('');}
+
+  bars('hier-bars',[['Flat (7-class)',.448],['Stacked',.485],['Management branch*',.83,'b']],1,'a',v=>v.toFixed(2));
+
+  const fn=[['All the model families we could think of','f-top',100],
+            ['476 records (380 for training)','f-row',92],
+            ['CPU only, no GPU','f-row',82],
+            ['Limited RAM (roughly 8 GB or less)','f-row',72],
+            ['No internet · hospital IT policy · privacy','f-row',62],
+            ['A few seconds per text; cheap retraining','f-row',52],
+            ['A person reviews high-risk predictions','f-row',44],
+            ['Frozen embeddings + light classifiers','f-end',60]];
+  const f=document.getElementById('funnel');
+  if(f){f.innerHTML=fn.map((r,k)=>'<div class="f-row '+r[1]+'" style="width:'+r[2]+'%;'+(k>0&&k<7?'background:var(--slate-t)':'')+'">'+r[0]+'</div>').join('');}
+
+  const h=parseInt(location.hash.slice(1));
+  show(isNaN(h)?0:h-1);
+})();
+</script>
+</body>
+</html>
